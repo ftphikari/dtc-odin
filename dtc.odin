@@ -49,43 +49,6 @@ DESTROY_DANGEROUS_WINDOW :: win32.WM_USER + 0x1338
 
 main_thread_ID: windows.DWORD
 
-service_wnd_proc :: proc "std" (window: win32.Hwnd, message: u32, wparam: win32.Wparam, lparam: win32.Lparam) -> (result: win32.Lresult) {
-	/* NOTE(casey): This is not really a window handler per se, it's actually just
-		 a remote thread call handler. Windows only really has blocking remote thread
-		 calls if you register a WndProc for them, so that's what we do.
-
-		 This handles CREATE_DANGEROUS_WINDOW and DESTROY_DANGEROUS_WINDOW, which are
-		 just calls that do CreateWindow and DestroyWindow here on this thread when
-		 some other thread wants that to happen.
-	*/
-
-	switch message {
-	case CREATE_DANGEROUS_WINDOW:
-		baby := cast(^The_Baby)wparam
-		wnd := win32.create_window_ex_w(
-			baby.dwExStyle,
-			baby.lpClassName,
-			baby.lpWindowName,
-			baby.dwStyle,
-			baby.X,
-			baby.Y,
-			baby.nWidth,
-			baby.nHeight,
-			baby.hWndParent,
-			baby.hMenu,
-			baby.hInstance,
-			baby.lpParam,
-		)
-		result = win32.Lresult(uintptr(wnd))
-	case DESTROY_DANGEROUS_WINDOW:
-		win32.destroy_window(win32.Hwnd(wparam))
-	case:
-		result = win32.def_window_proc_w(window, message, wparam, lparam)
-	}
-
-	return
-}
-
 display_wnd_proc :: proc "std" (window: win32.Hwnd, message: u32, wparam: win32.Wparam, lparam: win32.Lparam) -> (result: win32.Lresult) {
 	/* NOTE(casey): This is an example of an actual window procedure. It doesn't do anything
 		 but forward things to the main thread, because again, all window messages now occur
@@ -126,9 +89,8 @@ main_thread :: proc "stdcall" (param: windows.LPVOID) -> windows.DWORD {
 
 	service_window := win32.Hwnd(param)
 
-	window_class: win32.Wnd_Class_Ex_W = {
+	baby_window_class: win32.Wnd_Class_Ex_W = {
 		size = size_of(win32.Wnd_Class_Ex_W),
-		//style = win32.CS_OWNDC | win32.CS_HREDRAW | win32.CS_VREDRAW,
 		wnd_proc = display_wnd_proc,
 		instance = instance,
 		icon = win32.load_icon_a(nil, IDI_APPLICATION),
@@ -136,18 +98,17 @@ main_thread :: proc "stdcall" (param: windows.LPVOID) -> windows.DWORD {
 		background = win32.Hbrush(win32.get_stock_object(win32.BLACK_BRUSH)),
 		class_name = L("Dangerous Class"),
 	}
-	win32.register_class_ex_w(&window_class)
+	win32.register_class_ex_w(&baby_window_class)
 
 	baby: The_Baby = {
-		dwExStyle = 0,
-		lpClassName = window_class.class_name,
+		lpClassName = baby_window_class.class_name,
 		lpWindowName = L("Dangerous Window"),
 		dwStyle = win32.WS_OVERLAPPEDWINDOW | win32.WS_VISIBLE,
 		X = win32.CW_USEDEFAULT,
 		Y = win32.CW_USEDEFAULT,
 		nWidth = win32.CW_USEDEFAULT,
 		nHeight = win32.CW_USEDEFAULT,
-		hInstance = window_class.instance,
+		hInstance = baby_window_class.instance,
 	}
 	result := win32.send_message_w(service_window, CREATE_DANGEROUS_WINDOW, cast(win32.Wparam)&baby, 0)
 	this_would_be_the_handle_if_you_cared := win32.Hwnd(uintptr(result))
@@ -155,12 +116,11 @@ main_thread :: proc "stdcall" (param: windows.LPVOID) -> windows.DWORD {
 
 	x: i32
 	for {
-		message: win32.Msg
+		message: win32.Msg = ---
 		for win32.peek_message_w(&message, nil, 0, 0, win32.PM_REMOVE) {
 			switch message.message {
 			case win32.WM_CHAR:
 				win32.send_message_w(service_window, CREATE_DANGEROUS_WINDOW, cast(win32.Wparam)&baby, 0)
-
 			case win32.WM_CLOSE:
 				win32.send_message_w(service_window, DESTROY_DANGEROUS_WINDOW, message.wparam, 0)
 			}
@@ -170,9 +130,9 @@ main_thread :: proc "stdcall" (param: windows.LPVOID) -> windows.DWORD {
 		x += 1
 
 		window_count: i32
-		for window := FindWindowExW(nil, nil, window_class.class_name, nil)
+		for window := FindWindowExW(nil, nil, baby_window_class.class_name, nil)
 		window != nil;
-		window = FindWindowExW(nil, window, window_class.class_name, nil) {
+		window = FindWindowExW(nil, window, baby_window_class.class_name, nil) {
 			client: win32.Rect = ---
 			win32.get_client_rect(window, &client)
 			dc := win32.get_dc(window)
@@ -192,6 +152,43 @@ main_thread :: proc "stdcall" (param: windows.LPVOID) -> windows.DWORD {
 	os.exit(0)
 }
 
+service_wnd_proc :: proc "std" (window: win32.Hwnd, message: u32, wparam: win32.Wparam, lparam: win32.Lparam) -> (result: win32.Lresult) {
+	/* NOTE(casey): This is not really a window handler per se, it's actually just
+		 a remote thread call handler. Windows only really has blocking remote thread
+		 calls if you register a WndProc for them, so that's what we do.
+
+		 This handles CREATE_DANGEROUS_WINDOW and DESTROY_DANGEROUS_WINDOW, which are
+		 just calls that do CreateWindow and DestroyWindow here on this thread when
+		 some other thread wants that to happen.
+	*/
+
+	switch message {
+	case CREATE_DANGEROUS_WINDOW:
+		baby := cast(^The_Baby)wparam
+		wnd := win32.create_window_ex_w(
+			baby.dwExStyle,
+			baby.lpClassName,
+			baby.lpWindowName,
+			baby.dwStyle,
+			baby.X,
+			baby.Y,
+			baby.nWidth,
+			baby.nHeight,
+			baby.hWndParent,
+			baby.hMenu,
+			baby.hInstance,
+			baby.lpParam,
+		)
+		result = win32.Lresult(uintptr(wnd))
+	case DESTROY_DANGEROUS_WINDOW:
+		win32.destroy_window(win32.Hwnd(wparam))
+	case:
+		result = win32.def_window_proc_w(window, message, wparam, lparam)
+	}
+
+	return
+}
+
 main :: proc() {
 	instance := win32.Hinstance(windows.GetModuleHandleW(nil))
 	assert(instance != nil, "Failed to detect default instance")
@@ -204,7 +201,7 @@ main :: proc() {
 		 because they've already built it for you.
 	*/
 
-	window_class: win32.Wnd_Class_Ex_W = {
+	service_window_class: win32.Wnd_Class_Ex_W = {
 		size = size_of(win32.Wnd_Class_Ex_W),
 		wnd_proc = service_wnd_proc,
 		instance = instance,
@@ -213,13 +210,13 @@ main :: proc() {
 		background = win32.Hbrush(win32.get_stock_object(win32.BLACK_BRUSH)),
 		class_name = L("DTCClass"),
 	}
-	win32.register_class_ex_w(&window_class)
+	win32.register_class_ex_w(&service_window_class)
 
 	service_window := win32.create_window_ex_w(
-		0, window_class.class_name, L("DTCService"), 0,
+		0, service_window_class.class_name, L("DTCService"), 0,
 		win32.CW_USEDEFAULT, win32.CW_USEDEFAULT,
 		win32.CW_USEDEFAULT, win32.CW_USEDEFAULT,
-		nil, nil, window_class.instance, nil,
+		nil, nil, service_window_class.instance, nil,
 	)
 
 	// NOTE(casey): Once the service window is created, you can start the main thread,
@@ -240,5 +237,4 @@ main :: proc() {
 			win32.dispatch_message_w(&message)
 		}
 	}
-
 }
