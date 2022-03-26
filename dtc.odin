@@ -6,9 +6,6 @@ import "core:os"
 
 L :: intrinsics.constant_utf16_cstring
 
-_IDI_APPLICATION := rawptr(uintptr(32512))
-IDI_APPLICATION := cstring(_IDI_APPLICATION)
-
 The_Baby :: struct {
 	dwExStyle:    windows.DWORD,
 	lpClassName:  windows.LPCWSTR,
@@ -73,7 +70,7 @@ main_thread :: proc "stdcall" (param: windows.LPVOID) -> windows.DWORD {
 		cbSize = size_of(windows.WNDCLASSEXW),
 		lpfnWndProc = display_wnd_proc,
 		hInstance = instance,
-		hIcon = windows.LoadIconA(nil, IDI_APPLICATION),
+		hIcon = windows.LoadIconA(nil, windows.IDI_APPLICATION),
 		hCursor = windows.LoadCursorA(nil, windows.IDC_ARROW),
 		hbrBackground = windows.HBRUSH(windows.GetStockObject(windows.BLACK_BRUSH)),
 		lpszClassName = L("Dangerous Class"),
@@ -185,7 +182,7 @@ main :: proc() {
 		cbSize = size_of(windows.WNDCLASSEXW),
 		lpfnWndProc = service_wnd_proc,
 		hInstance = instance,
-		hIcon = windows.LoadIconA(nil, IDI_APPLICATION),
+		hIcon = windows.LoadIconA(nil, windows.IDI_APPLICATION),
 		hCursor = windows.LoadCursorA(nil, windows.IDC_ARROW),
 		hbrBackground = windows.HBRUSH(windows.GetStockObject(windows.BLACK_BRUSH)),
 		lpszClassName = L("DTCClass"),
