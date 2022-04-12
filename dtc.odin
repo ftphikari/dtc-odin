@@ -1,7 +1,6 @@
 package dtc
 
 import "core:sys/windows"
-import "core:intrinsics"
 import "core:os"
 
 L :: windows.L
