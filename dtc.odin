@@ -4,7 +4,7 @@ import "core:sys/windows"
 import "core:intrinsics"
 import "core:os"
 
-L :: intrinsics.constant_utf16_cstring
+L :: windows.L
 
 The_Baby :: struct {
 	dwExStyle:    windows.DWORD,
